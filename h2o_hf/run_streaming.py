@@ -11,7 +11,7 @@ import re
 import sys
 
 from tqdm import tqdm
-from streaming_llm.utils import load, download_url, load_jsonl
+from utils_real_drop.stream import load, download_url, load_jsonl
 
 from transformers.models.llama.modeling_llama import LlamaAttention
 from utils_real_drop.modify_llama import H2OLlamaAttention_streaming, H2OLlamaForCausalLM_streaming
@@ -136,13 +136,13 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_name_or_path", type=str, default="lmsys/vicuna-13b-v1.3"
+        "--model_name_or_path", type=str, default="gradientai/Llama-3-8B-Instruct-Gradient-1048k"
     )
     parser.add_argument("--data_root", type=str, default="data/")
-    parser.add_argument("--enable_streaming_with_H2O", action="store_true")
+    parser.add_argument("--enable_streaming_with_H2O", type=bool, default=True)
     parser.add_argument("--start_size", type=int, default=4)
-    parser.add_argument("--heavy_hitter_size", type=int, default=4)
-    parser.add_argument("--recent_size", type=int, default=2000)
+    parser.add_argument("--heavy_hitter_size", type=int, default=48)
+    parser.add_argument("--recent_size", type=int, default=100)
     args = parser.parse_args()
 
     main(args)

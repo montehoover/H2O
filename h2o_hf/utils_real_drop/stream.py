@@ -61,9 +61,12 @@ def load(model_name_or_path, heavy_hitter=False, args=None):
         model_name_or_path,
         trust_remote_code=True,
     )
+    
+    config = AutoConfig.from_pretrained(model_name_or_path)
+    # Monte add: a trick to keep from allocating memory for RoPE until we need it.
+    config.max_position_embeddings = 1
 
     if args is not None:
-        config = AutoConfig.from_pretrained(model_name_or_path)
         config.hh_size = args.heavy_hitter_size
         config.recent_size = args.recent_size
 
@@ -79,6 +82,7 @@ def load(model_name_or_path, heavy_hitter=False, args=None):
         model = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
             device_map="auto",
+            config=config,
             torch_dtype=torch.float16,
             trust_remote_code=True,
         )

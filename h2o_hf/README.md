@@ -1,3 +1,17 @@
+# Monte's fork of H2O
+
+## Quickstart
+```
+module load cuda/12.4.1
+conda env create -f h2o.yml
+python run_streaming.py
+```
+
+
+
+Original README:
+-------------
+
 # H2O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models
 
 ## Installation
