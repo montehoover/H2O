@@ -246,6 +246,8 @@ class H2OKVCache_LayerWise:
         recent_size=512,
         k_seq_dim=2,
         v_seq_dim=2,
+        num_key_value_heads=None,
+        num_heads=None,
     ):
         print(f"H2OKVCache-LayerWise: {hh_size}, {recent_size}")
         self.hh_size = hh_size
@@ -254,6 +256,8 @@ class H2OKVCache_LayerWise:
         self.k_seq_dim = k_seq_dim
         self.v_seq_dim = v_seq_dim
         self.hh_score = None
+        self.num_key_value_heads = num_key_value_heads
+        self.num_heads = num_heads
 
     def __call__(self, past_key_values, attn_score_cache):
 
@@ -266,7 +270,7 @@ class H2OKVCache_LayerWise:
             return past_key_values
 
         # hh-selection
-        bsz, num_heads, _, head_dim = past_key_values[0].shape
+        bsz, num_key_value_heads, _, head_dim = past_key_values[0].shape
 
         select_hh_scores = self.hh_score[:, :seq_len - self.recent_size]
         _, keep_topk = torch.topk(select_hh_scores, self.hh_size, dim=-1)
@@ -279,10 +283,10 @@ class H2OKVCache_LayerWise:
         mask = torch.zeros(self.hh_score.shape, dtype=torch.bool).to(past_key_values[0].device)
         mask = mask.scatter(-1, keep_idx, 1)
 
-        k_hh_recent = past_key_values[0].squeeze()[mask].view(bsz, num_heads, -1, head_dim)
-        v_hh_recent = past_key_values[1].squeeze()[mask].view(bsz, num_heads, -1, head_dim)
+        k_hh_recent = past_key_values[0].squeeze()[mask].view(bsz, num_key_value_heads, -1, head_dim)
+        v_hh_recent = past_key_values[1].squeeze()[mask].view(bsz, num_key_value_heads, -1, head_dim)
 
-        self.hh_score= self.hh_score[mask].view(num_heads, self.cache_size)
+        self.hh_score= self.hh_score[mask].view(num_key_value_heads, self.cache_size)
 
         return (k_hh_recent, v_hh_recent)
 
@@ -294,7 +298,7 @@ class H2OKVCache_LayerWise:
             return past_key_values
 
         # hh-selection
-        bsz, num_heads, _, head_dim = past_key_values[0].shape
+        bsz, num_key_value_heads, _, head_dim = past_key_values[0].shape
 
         select_hh_scores = self.hh_score[:, :seq_len - self.recent_size + num_coming]
         _, keep_topk = torch.topk(select_hh_scores, self.hh_size, dim=-1)
@@ -307,16 +311,24 @@ class H2OKVCache_LayerWise:
         mask = torch.zeros(self.hh_score.shape, dtype=torch.bool).to(past_key_values[0].device)
         mask = mask.scatter(-1, keep_idx, 1)
 
-        k_hh_recent = past_key_values[0].squeeze()[mask].view(bsz, num_heads, -1, head_dim)
-        v_hh_recent = past_key_values[1].squeeze()[mask].view(bsz, num_heads, -1, head_dim)
+        k_hh_recent = past_key_values[0].squeeze()[mask].view(bsz, num_key_value_heads, -1, head_dim)
+        v_hh_recent = past_key_values[1].squeeze()[mask].view(bsz, num_key_value_heads, -1, head_dim)
 
-        self.hh_score= self.hh_score[mask].view(num_heads, self.cache_size)
+        self.hh_score= self.hh_score[mask].view(num_key_value_heads, self.cache_size)
 
         return (k_hh_recent, v_hh_recent)
 
     def _update_hh_score(self, attn_score_cache):
 
         num_new_tokens = attn_score_cache.shape[2]
+        
+        # Monte Add: Update for Grouped Query Attention (where num_kv_heads < num_heads)
+        bsz, num_heads, q_len, kv_len = attn_score_cache.shape
+        num_key_value_heads = self.num_key_value_heads
+        num_key_value_groups = self.num_heads // self.num_key_value_heads
+        attn_score_cache = attn_score_cache.view(bsz, num_key_value_heads, num_key_value_groups, q_len, kv_len)
+        # Sum over num_key_value_groups to aggregate scores for each kv_head
+        attn_score_cache = attn_score_cache.sum(2)  # Shape: [bsz, num_kv_heads, q_len, kv_len]
 
         if self.hh_score is None:
             self.hh_score = attn_score_cache.sum(0).sum(1)
@@ -359,6 +371,8 @@ class H2OLlamaAttention(nn.Module):
             recent_size=config.recent_size,
             k_seq_dim=2,
             v_seq_dim=2,
+            num_key_value_heads=self.num_key_value_heads,
+            num_heads=self.num_heads,
         )
 
     def _init_rope(self):
@@ -581,6 +595,8 @@ class H2OLlamaAttention_streaming(nn.Module):
             recent_size=config.recent_size,
             k_seq_dim=2,
             v_seq_dim=2,
+            num_key_value_heads=self.num_key_value_heads,
+            num_heads=self.num_heads,
         )
 
     def _init_rope(self):

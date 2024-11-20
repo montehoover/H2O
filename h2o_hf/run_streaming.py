@@ -141,8 +141,8 @@ if __name__ == "__main__":
     parser.add_argument("--data_root", type=str, default="data/")
     parser.add_argument("--enable_streaming_with_H2O", type=bool, default=True)
     parser.add_argument("--start_size", type=int, default=4)
-    parser.add_argument("--heavy_hitter_size", type=int, default=48)
-    parser.add_argument("--recent_size", type=int, default=100)
+    parser.add_argument("--heavy_hitter_size", type=int, default=8)
+    parser.add_argument("--recent_size", type=int, default=8)
     args = parser.parse_args()
 
     main(args)
